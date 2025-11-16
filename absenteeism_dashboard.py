@@ -37,7 +37,8 @@ def load_data(path):
     df = pd.read_csv(path)
     return df
 
-DATA_PATH = r"C:\Users\nseli\Absenteeism_clean_basic.csv"
+DATA_PATH = "absenteeism_clean_basic.csv"
+
 df_raw = load_data(DATA_PATH)
 df = df_raw.copy()
 
