@@ -463,15 +463,21 @@ num_df = df.select_dtypes(include=[np.number])
 if not num_df.empty:
     corr = num_df.corr()
 
+    # Custom blue color scale (light → dark)
+    blue_scale = [
+        [0.0, "#99CCFF"],  # light blue
+        [1.0, "#0066CC"]   # dark blue
+    ]
+
     fig_corr = px.imshow(
         corr.values,
         x=corr.columns,
         y=corr.index,
-        color_continuous_scale="RdBu",
+        color_continuous_scale=blue_scale,
         origin="lower",
         title="Correlation Heatmap",
-        height=900,          # <-- Bigger height
-        width=1400           # <-- Bigger width
+        height=900,
+        width=1400
     )
 
     # Improve readability
@@ -486,7 +492,6 @@ if not num_df.empty:
 
 else:
     st.info("No numeric columns available for correlation heatmap.")
-
 
 # --------------------------------------------------
 # MODELS TAB (use FULL dataset, not filtered)
