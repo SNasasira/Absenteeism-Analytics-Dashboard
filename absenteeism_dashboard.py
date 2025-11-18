@@ -216,7 +216,64 @@ st.markdown("---")
 tab_overview, tab_eda, tab_models, tab_clusters = st.tabs(
     ["Overview", "EDA", "Models", "Clusters"]
 )
+# --------------------------------------------------
+# HELPER: summary insights
+# --------------------------------------------------
+def generate_insights(df_view: pd.DataFrame) -> str:
+    lines = []
 
+    # Top reason
+    if REASON_COL is not None and not df_view.empty:
+        reason_summary = (
+            df_view.groupby(REASON_COL)["Absenteeism time in hours"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+        if len(reason_summary) > 0:
+            top_reason = reason_summary.index[0]
+            top_reason_hours = reason_summary.iloc[0]
+            lines.append(
+                f"- **Top reason:** `{top_reason}` with **{top_reason_hours:.0f} hours** missed."
+            )
+
+    # Peak month
+    if "Month of absence" in df_view.columns:
+        month_summary = (
+            df_view.groupby("Month of absence")["Absenteeism time in hours"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+        if len(month_summary) > 0:
+            peak_month = int(month_summary.index[0])
+            lines.append(f"- **Peak month:** Month **{peak_month}** has the highest total absence.")
+
+    # Peak day of week
+    if "Day_name" in df_view.columns:
+        dow_summary = (
+            df_view.groupby("Day_name")["Absenteeism time in hours"]
+            .sum()
+            .reindex(["Mon", "Tue", "Wed", "Thu", "Fri"])
+            .dropna()
+        )
+        if len(dow_summary) > 0:
+            peak_day = dow_summary.idxmax()
+            lines.append(f"- **Busiest absence day:** **{peak_day}** has the most hours missed.")
+
+    # Peak season
+    if "Seasons" in df_view.columns:
+        season_summary = (
+            df_view.groupby("Seasons")["Absenteeism time in hours"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+        if len(season_summary) > 0:
+            peak_season = int(season_summary.index[0])
+            lines.append(f"- **Highest season:** Season **{peak_season}** shows the most absenteeism.")
+
+    if not lines:
+        return "No insights available for the current filters."
+    return "\n".join(lines)
+    
 # --------------------------------------------------
 # OVERVIEW TAB
 # --------------------------------------------------
