@@ -597,44 +597,107 @@ with tab_models:
     st.plotly_chart(fig_roc, use_container_width=True)
 
 # --------------------------------------------------
-# CLUSTERS TAB
+# CLUSTERS TAB (Improved, data-rich clustering)
 # --------------------------------------------------
 with tab_clusters:
-    st.subheader("K-Means Clustering of Employees")
+    st.subheader("K-Means Clustering of Absenteeism Profiles")
 
-    cluster_cols = [
+    # --- 1. Choose features for clustering (numeric + categorical) ---
+    numeric_candidates = [
         "Absenteeism time in hours",
+        "High_absenteeism",
         "Work load Average/day ",
         "Distance from Residence to Work",
         "Age",
         "Body mass index",
         "Service time",
-        "Hit target"
+        "Hit target",
+        "Son",
+        "Pet",
     ]
-    cluster_cols = [c for c in cluster_cols if c in df.columns]
 
-    if len(cluster_cols) < 2:
+    categorical_candidates = []
+
+    # Behavioral / policy variables
+    if "Social drinker" in df.columns:
+        categorical_candidates.append("Social drinker")
+    if "Social smoker" in df.columns:
+        categorical_candidates.append("Social smoker")
+    if "Disciplinary failure" in df.columns:
+        categorical_candidates.append("Disciplinary failure")
+
+    # Time-related
+    if "Month of absence" in df.columns:
+        categorical_candidates.append("Month of absence")
+    if "Seasons" in df.columns:
+        categorical_candidates.append("Seasons")
+
+    # Reason for absence (use whichever column is available)
+    if REASON_COL is not None and REASON_COL in df.columns:
+        categorical_candidates.append(REASON_COL)
+
+    # Keep only columns that actually exist in df
+    numeric_cols = [c for c in numeric_candidates if c in df.columns]
+    cat_cols = [c for c in categorical_candidates if c in df.columns]
+
+    if len(numeric_cols) < 2:
         st.info("Not enough numeric columns available for clustering.")
     else:
-        cluster_df = df[cluster_cols].copy()
+        # --- 2. Build clustering dataframe ---
+        cluster_df = df[numeric_cols + cat_cols].copy()
 
+        # Handle missing values: median for numeric, mode for categorical
+        for col in numeric_cols:
+            if cluster_df[col].isna().any():
+                cluster_df[col] = cluster_df[col].fillna(cluster_df[col].median())
+
+        for col in cat_cols:
+            if cluster_df[col].isna().any():
+                mode_val = cluster_df[col].mode(dropna=True)
+                if not mode_val.empty:
+                    cluster_df[col] = cluster_df[col].fillna(mode_val.iloc[0])
+                else:
+                    cluster_df[col] = cluster_df[col].fillna("Unknown")
+
+        # --- 3. One-hot encode categorical variables ---
+        if cat_cols:
+            cluster_df = pd.get_dummies(cluster_df, columns=cat_cols, drop_first=True)
+
+        # --- 4. Scale features ---
         scaler_cl = StandardScaler()
         cluster_scaled = scaler_cl.fit_transform(cluster_df)
 
-        k = 3
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+        # --- 5. Let user choose k ---
+        k = st.slider("Number of clusters (k)", min_value=2, max_value=6, value=3, step=1)
+
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         labels = kmeans.fit_predict(cluster_scaled)
 
+        # Attach clusters back to filtered df
         df_cl = df.copy()
         df_cl["Cluster"] = labels
 
-        st.markdown("**Cluster Sizes**")
-        st.write(df_cl["Cluster"].value_counts())
+        # --- 6. Show cluster sizes ---
+        st.markdown("**Cluster Sizes (number of records)**")
+        st.write(df_cl["Cluster"].value_counts().sort_index())
 
+        # --- 7. Show numeric profiles for each cluster ---
         st.markdown("**Cluster Profiles (Mean Values)**")
-        profile = df_cl.groupby("Cluster")[cluster_cols].mean().round(2)
+
+        # Only use numeric columns that still exist in df_cl
+        profile_cols = [c for c in numeric_cols if c in df_cl.columns]
+        profile = df_cl.groupby("Cluster")[profile_cols].mean().round(2)
         st.dataframe(profile)
 
+        # Also show proportion of high absenteeism by cluster (if available)
+        if "High_absenteeism" in df_cl.columns:
+            st.markdown("**Share of High Absenteeism by Cluster**")
+            high_share = (df_cl.groupby("Cluster")["High_absenteeism"]
+                            .mean()
+                            .round(3))
+            st.write(high_share)
+
+        # --- 8. Visualization: Age vs Absenteeism by Cluster ---
         st.subheader("Age vs Absenteeism by Cluster")
         if "Age" in df_cl.columns:
             fig_cl = px.scatter(
@@ -642,10 +705,12 @@ with tab_clusters:
                 x="Age",
                 y="Absenteeism time in hours",
                 color="Cluster",
-                title="Employee Clusters by Age and Absenteeism",
+                title="Employee Absenteeism Profiles by Cluster",
                 labels={"Absenteeism time in hours": "Hours Missed"},
-                hover_data=["Service time", "Body mass index"]
-                if "Body mass index" in df_cl.columns else None
+                hover_data=[
+                    col for col in ["Service time", "Body mass index", "Work load Average/day "]
+                    if col in df_cl.columns
+                ]
             )
             st.plotly_chart(fig_cl, use_container_width=True)
         else:
