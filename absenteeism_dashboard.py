@@ -283,9 +283,6 @@ def generate_insights(df_view: pd.DataFrame) -> str:
 # OVERVIEW TAB
 # --------------------------------------------------
 with tab_overview:
-    st.subheader("Key Insights (based on current filters)")
-    st.markdown(generate_insights(df))
-
     st.markdown("### Absenteeism by Reason (Top 10)")
     if REASON_COL is not None:
         reason_abs = (
@@ -460,20 +457,36 @@ with tab_eda:
             st.plotly_chart(fig_age, use_container_width=True)
 
     st.subheader("Correlation Heatmap (Numeric Variables)")
-    num_df = df.select_dtypes(include=[np.number])
-    if not num_df.empty:
-        corr = num_df.corr()
-        fig_corr = px.imshow(
-            corr.values,
-            x=corr.columns,
-            y=corr.index,
-            color_continuous_scale="RdBu",
-            origin="lower",
-            title="Correlation Heatmap"
-        )
-        st.plotly_chart(fig_corr, use_container_width=True)
-    else:
-        st.info("No numeric columns available for correlation heatmap.")
+
+num_df = df.select_dtypes(include=[np.number])
+
+if not num_df.empty:
+    corr = num_df.corr()
+
+    fig_corr = px.imshow(
+        corr.values,
+        x=corr.columns,
+        y=corr.index,
+        color_continuous_scale="RdBu",
+        origin="lower",
+        title="Correlation Heatmap",
+        height=900,          # <-- Bigger height
+        width=1400           # <-- Bigger width
+    )
+
+    # Improve readability
+    fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
+    fig_corr.update_yaxes(tickfont=dict(size=14))
+    fig_corr.update_layout(
+        title_font=dict(size=24),
+        coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
+    )
+
+    st.plotly_chart(fig_corr, use_container_width=True)
+
+else:
+    st.info("No numeric columns available for correlation heatmap.")
+
 
 # --------------------------------------------------
 # MODELS TAB (use FULL dataset, not filtered)
