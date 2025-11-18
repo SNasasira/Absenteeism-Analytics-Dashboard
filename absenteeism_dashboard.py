@@ -218,64 +218,6 @@ tab_overview, tab_eda, tab_models, tab_clusters = st.tabs(
 )
 
 # --------------------------------------------------
-# HELPER: summary insights
-# --------------------------------------------------
-def generate_insights(df_view: pd.DataFrame) -> str:
-    lines = []
-
-    # Top reason
-    if REASON_COL is not None and not df_view.empty:
-        reason_summary = (
-            df_view.groupby(REASON_COL)["Absenteeism time in hours"]
-            .sum()
-            .sort_values(ascending=False)
-        )
-        if len(reason_summary) > 0:
-            top_reason = reason_summary.index[0]
-            top_reason_hours = reason_summary.iloc[0]
-            lines.append(
-                f"- **Top reason:** `{top_reason}` with **{top_reason_hours:.0f} hours** missed."
-            )
-
-    # Peak month
-    if "Month of absence" in df_view.columns:
-        month_summary = (
-            df_view.groupby("Month of absence")["Absenteeism time in hours"]
-            .sum()
-            .sort_values(ascending=False)
-        )
-        if len(month_summary) > 0:
-            peak_month = int(month_summary.index[0])
-            lines.append(f"- **Peak month:** Month **{peak_month}** has the highest total absence.")
-
-    # Peak day of week
-    if "Day_name" in df_view.columns:
-        dow_summary = (
-            df_view.groupby("Day_name")["Absenteeism time in hours"]
-            .sum()
-            .reindex(["Mon", "Tue", "Wed", "Thu", "Fri"])
-            .dropna()
-        )
-        if len(dow_summary) > 0:
-            peak_day = dow_summary.idxmax()
-            lines.append(f"- **Busiest absence day:** **{peak_day}** has the most hours missed.")
-
-    # Peak season
-    if "Seasons" in df_view.columns:
-        season_summary = (
-            df_view.groupby("Seasons")["Absenteeism time in hours"]
-            .sum()
-            .sort_values(ascending=False)
-        )
-        if len(season_summary) > 0:
-            peak_season = int(season_summary.index[0])
-            lines.append(f"- **Highest season:** Season **{peak_season}** shows the most absenteeism.")
-
-    if not lines:
-        return "No insights available for the current filters."
-    return "\n".join(lines)
-
-# --------------------------------------------------
 # OVERVIEW TAB
 # --------------------------------------------------
 with tab_overview:
@@ -438,19 +380,28 @@ with col2:
     if "Age" in df.columns:
         age_bins = [20, 30, 40, 50, 60]
         df_age = df.copy()
+
+        # Create age groups as strings so Plotly/JSON can handle them
         df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
+        df_age["Age group"] = df_age["Age group"].astype(str)
+
         age_group_abs = (
             df_age.groupby("Age group")["Absenteeism time in hours"]
             .sum()
             .reset_index()
         )
+
         fig_age = px.bar(
             age_group_abs,
             x="Age group",
             y="Absenteeism time in hours",
-            labels={"Absenteeism time in hours": "Total Hours"},
-            title="Total Absenteeism by Age Group"
+            labels={
+                "Age group": "Age group",
+                "Absenteeism time in hours": "Total Hours",
+            },
+            title="Total Absenteeism by Age Group",
         )
+        fig_age.update_layout(xaxis_type="category")
         st.plotly_chart(fig_age, use_container_width=True)
 
 
