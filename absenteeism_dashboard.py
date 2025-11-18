@@ -37,8 +37,8 @@ def load_data(path: str) -> pd.DataFrame:
 
 # NOTE: file is in same folder as this script
 DATA_PATH = "absenteeism_clean_basic.csv"
-df_raw = load_data(DATA_PATH)
-df = df_raw.copy()
+df_raw = load_data(DATA_PATH)        # unfiltered data
+df = df_raw.copy()                   # filtered view will overwrite this
 
 # --------------------------------------------------
 # BASIC FEATURE ENGINEERING
@@ -166,22 +166,21 @@ cluster_cols_kpi = [c for c in cluster_cols_base if c in df.columns]
 
 cluster_kpi_text = "N/A"
 if len(cluster_cols_kpi) >= 2:
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler as _Std  # local import for safety
+    from sklearn.cluster import KMeans as _KMeans
 
     cluster_df_kpi = df[cluster_cols_kpi].copy()
-    scaler_kpi = StandardScaler()
+    scaler_kpi = _Std()
     cluster_scaled_kpi = scaler_kpi.fit_transform(cluster_df_kpi)
 
     k_kpi = 3
-    kmeans_kpi = KMeans(n_clusters=k_kpi, random_state=42, n_init="auto")
+    kmeans_kpi = _KMeans(n_clusters=k_kpi, random_state=42, n_init="auto")
     labels_kpi = kmeans_kpi.fit_predict(cluster_scaled_kpi)
 
     df_kpi_clusters = df.copy()
     df_kpi_clusters["Cluster"] = labels_kpi
     sizes = df_kpi_clusters["Cluster"].value_counts().sort_index()
 
-    # Example text: "0: 474 | 1: 186 | 2: 46"
     cluster_kpi_text = " | ".join(
         [f"{i}: {int(sizes.get(i, 0))}" for i in range(k_kpi)]
     )
@@ -206,7 +205,12 @@ kpi2.metric("Employees per Cluster (0 | 1 | 2)", cluster_kpi_text)
 kpi3.metric("Total Hours Missed", f"{total_hours:.0f}")
 kpi4.metric("Avg Hours / Record", f"{avg_abs:.2f}")
 kpi5.metric("% High Absenteeism", f"{high_abs_pct:.1f}%")
-kpi6.metric("Avg BMI / Distance", f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km" if not np.isnan(avg_bmi) and not np.isnan(avg_dist) else "-")
+kpi6.metric(
+    "Avg BMI / Distance",
+    f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km"
+    if not np.isnan(avg_bmi) and not np.isnan(avg_dist)
+    else "-"
+)
 
 st.markdown("---")
 
@@ -216,6 +220,7 @@ st.markdown("---")
 tab_overview, tab_eda, tab_models, tab_clusters = st.tabs(
     ["Overview", "EDA", "Models", "Clusters"]
 )
+
 # --------------------------------------------------
 # HELPER: summary insights
 # --------------------------------------------------
@@ -273,7 +278,7 @@ def generate_insights(df_view: pd.DataFrame) -> str:
     if not lines:
         return "No insights available for the current filters."
     return "\n".join(lines)
-    
+
 # --------------------------------------------------
 # OVERVIEW TAB
 # --------------------------------------------------
@@ -353,7 +358,6 @@ with tab_overview:
               .sum()
               .reset_index()
         )
-        # focus on top 10 reasons by total hours
         top_reasons = (
             reason_hi_lo.groupby(REASON_COL)["Absenteeism time in hours"]
             .sum()
@@ -432,48 +436,65 @@ with tab_eda:
         else:
             st.info("Column 'ID' not found.")
 
-with col2:
-    st.subheader("Absenteeism by Age Group")
-    if "Age" in df.columns:
-        age_bins = [20, 30, 40, 50, 60]
-        df_age = df.copy()
+    with col2:
+        st.subheader("Absenteeism by Age Group")
+        if "Age" in df.columns:
+            age_bins = [20, 30, 40, 50, 60]
+            df_age = df.copy()
+            df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
+            age_group_abs = (
+                df_age.groupby("Age group")["Absenteeism time in hours"]
+                .sum()
+                .reset_index()
+            )
+            # Convert Interval to string so Plotly / JSON can handle it
+            age_group_abs["Age group"] = age_group_abs["Age group"].astype(str)
 
-        # Create age groups as strings so Plotly/JSON can handle them
-        df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
-        df_age["Age group"] = df_age["Age group"].astype(str)
+            fig_age = px.bar(
+                age_group_abs,
+                x="Age group",
+                y="Absenteeism time in hours",
+                labels={"Absenteeism time in hours": "Total Hours"},
+                title="Total Absenteeism by Age Group"
+            )
+            st.plotly_chart(fig_age, use_container_width=True)
 
-        age_group_abs = (
-            df_age.groupby("Age group")["Absenteeism time in hours"]
-            .sum()
-            .reset_index()
+    st.subheader("Correlation Heatmap (Numeric Variables)")
+    num_df = df.select_dtypes(include=[np.number])
+    if not num_df.empty:
+        corr = num_df.corr()
+        fig_corr = px.imshow(
+            corr.values,
+            x=corr.columns,
+            y=corr.index,
+            color_continuous_scale="RdBu",
+            origin="lower",
+            title="Correlation Heatmap"
         )
-
-        fig_age = px.bar(
-            age_group_abs,
-            x="Age group",
-            y="Absenteeism time in hours",
-            labels={
-                "Age group": "Age group",
-                "Absenteeism time in hours": "Total Hours",
-            },
-            title="Total Absenteeism by Age Group",
-        )
-        fig_age.update_layout(xaxis_type="category")
-        st.plotly_chart(fig_age, use_container_width=True)
-
+        st.plotly_chart(fig_corr, use_container_width=True)
+    else:
+        st.info("No numeric columns available for correlation heatmap.")
 
 # --------------------------------------------------
-# MODELS TAB
+# MODELS TAB (use FULL dataset, not filtered)
 # --------------------------------------------------
 with tab_models:
     st.subheader("Predictive Models: Logistic Regression vs Random Forest")
 
-    model_df = df.copy()
+    model_df = df_raw.copy()   # << use unfiltered data to match notebook results
+
+    # Drop ID and text columns that are not useful for prediction
     drop_cols = []
     for col in ["ID", "Reason_desc"]:
         if col in model_df.columns:
             drop_cols.append(col)
     model_df = model_df.drop(columns=drop_cols, errors="ignore")
+
+    # Make sure High_absenteeism exists on raw data too
+    if "High_absenteeism" not in model_df.columns:
+        model_df["High_absenteeism"] = (
+            model_df["Absenteeism time in hours"] >= 8
+        ).astype(int)
 
     y = model_df["High_absenteeism"]
     X = model_df.drop(columns=["High_absenteeism", "Absenteeism time in hours"])
@@ -494,7 +515,7 @@ with tab_models:
     X_train_scaled = scaler.fit_transform(X_train_imp)
     X_test_scaled = scaler.transform(X_test_imp)
 
-    log_model = LogisticRegression(max_iter=5000)
+    log_model = LogisticRegression(max_iter=20000)
     log_model.fit(X_train_scaled, y_train)
     y_pred_log = log_model.predict(X_test_scaled)
     y_prob_log = log_model.predict_proba(X_test_scaled)[:, 1]
@@ -605,7 +626,8 @@ with tab_clusters:
                 color="Cluster",
                 title="Employee Clusters by Age and Absenteeism",
                 labels={"Absenteeism time in hours": "Hours Missed"},
-                hover_data=["Service time", "Body mass index"] if "Body mass index" in df_cl.columns else None
+                hover_data=["Service time", "Body mass index"]
+                if "Body mass index" in df_cl.columns else None
             )
             st.plotly_chart(fig_cl, use_container_width=True)
         else:
