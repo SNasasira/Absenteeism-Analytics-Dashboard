@@ -185,7 +185,32 @@ if len(cluster_cols_kpi) >= 2:
         [f"{i}: {int(sizes.get(i, 0))}" for i in range(k_kpi)]
     )
 
-kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
+# Better KPI layout – 3 items per row
+row1 = st.columns(3)
+row2 = st.columns(3)
+
+with row1[0]:
+    st.metric("Employees (Filtered)", num_employees if num_employees is not None else "-")
+
+with row1[1]:
+    st.metric("Employees per Cluster (0 | 1 | 2)", cluster_kpi_text)
+
+with row1[2]:
+    st.metric("Total Hours Missed", f"{total_hours:.0f}")
+
+with row2[0]:
+    st.metric("Avg Hours / Record", f"{avg_abs:.2f}")
+
+with row2[1]:
+    st.metric("% High Absenteeism", f"{high_abs_pct:.1f}%")
+
+with row2[2]:
+    st.metric(
+        "Avg BMI / Distance",
+        f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km"
+        if not np.isnan(avg_bmi) and not np.isnan(avg_dist)
+        else "-"
+    )
 
 total_hours = df["Absenteeism time in hours"].sum()
 avg_abs = df["Absenteeism time in hours"].mean()
@@ -466,9 +491,8 @@ with col2:
     else:
         st.info("Column 'Age' not found.")
 
-    # ----------------------------
-    # CORRELATION HEATMAP (fixed)
-    # ----------------------------
+with tab_eda:
+
     st.subheader("Correlation Heatmap (Numeric Variables)")
 
     num_df = df.select_dtypes(include=[np.number])
@@ -481,28 +505,36 @@ with col2:
             [1.0, "#0066CC"]
         ]
 
-        fig_corr = px.imshow(
-            corr.values,
-            x=corr.columns,
-            y=corr.index,
-            color_continuous_scale=blue_scale,
-            origin="lower",
-            title="Correlation Heatmap",
-            height=900,
-            width=1400
-        )
+        # LEFT-ALIGNED HEATMAP
+        left_col, right_col = st.columns([4, 1])   # <- widen left side
 
-        fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
-        fig_corr.update_yaxes(tickfont=dict(size=14))
-        fig_corr.update_layout(
-            title_font=dict(size=24),
-            coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
-        )
+        with left_col:
+            fig_corr = px.imshow(
+                corr.values,
+                x=corr.columns,
+                y=corr.index,
+                color_continuous_scale=blue_scale,
+                origin="lower",
+                title="Correlation Heatmap",
+                height=900,
+                width=900          # <- reduce width to avoid huge layout
+            )
 
-        st.plotly_chart(fig_corr, use_container_width=True)
+            fig_corr.update_xaxes(tickfont=dict(size=12), tickangle=45)
+            fig_corr.update_yaxes(tickfont=dict(size=12))
+            fig_corr.update_layout(
+                title_font=dict(size=22),
+                coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=10))
+            )
+
+            st.plotly_chart(fig_corr, use_container_width=False)
+
+        with right_col:
+            st.empty()
 
     else:
         st.info("No numeric columns available for correlation heatmap.")
+
 
   
 
