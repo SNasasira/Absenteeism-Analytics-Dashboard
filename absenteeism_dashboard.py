@@ -457,41 +457,41 @@ with tab_eda:
             st.plotly_chart(fig_age, use_container_width=True)
 
    with tab_eda:
-    st.subheader("Correlation Heatmap (Numeric Variables)")
-
-    num_df = df.select_dtypes(include=[np.number])
-
-    if not num_df.empty:
-        corr = num_df.corr()
-
-        blue_scale = [
-            [0.0, "#99CCFF"],
-            [1.0, "#0066CC"]
-        ]
-
-        fig_corr = px.imshow(
-            corr.values,
-            x=corr.columns,
-            y=corr.index,
-            color_continuous_scale=blue_scale,
-            origin="lower",
-            title="Correlation Heatmap",
-            height=900,
-            width=1400
-        )
-
-        fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
-        fig_corr.update_yaxes(tickfont=dict(size=14))
-        fig_corr.update_layout(
-            title_font=dict(size=24),
-            coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
-        )
-
-        st.plotly_chart(fig_corr, use_container_width=True)
-
-    else:
-        st.info("No numeric columns available for correlation heatmap.")
-
+        st.subheader("Correlation Heatmap (Numeric Variables)")
+    
+        num_df = df.select_dtypes(include=[np.number])
+    
+        if not num_df.empty:
+            corr = num_df.corr()
+    
+            blue_scale = [
+                [0.0, "#99CCFF"],
+                [1.0, "#0066CC"]
+            ]
+    
+            fig_corr = px.imshow(
+                corr.values,
+                x=corr.columns,
+                y=corr.index,
+                color_continuous_scale=blue_scale,
+                origin="lower",
+                title="Correlation Heatmap",
+                height=900,
+                width=1400
+            )
+    
+            fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
+            fig_corr.update_yaxes(tickfont=dict(size=14))
+            fig_corr.update_layout(
+                title_font=dict(size=24),
+                coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
+            )
+    
+            st.plotly_chart(fig_corr, use_container_width=True)
+    
+        else:
+            st.info("No numeric columns available for correlation heatmap.")
+    
 
 # --------------------------------------------------
 # MODELS TAB (use FULL dataset, not filtered)
