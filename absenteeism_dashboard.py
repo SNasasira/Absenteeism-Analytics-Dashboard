@@ -456,42 +456,42 @@ with tab_eda:
             )
             st.plotly_chart(fig_age, use_container_width=True)
 
+   with tab_eda:
     st.subheader("Correlation Heatmap (Numeric Variables)")
 
-num_df = df.select_dtypes(include=[np.number])
+    num_df = df.select_dtypes(include=[np.number])
 
-if not num_df.empty:
-    corr = num_df.corr()
+    if not num_df.empty:
+        corr = num_df.corr()
 
-    # Custom blue color scale (light → dark)
-    blue_scale = [
-        [0.0, "#99CCFF"],  # light blue
-        [1.0, "#0066CC"]   # dark blue
-    ]
+        blue_scale = [
+            [0.0, "#99CCFF"],
+            [1.0, "#0066CC"]
+        ]
 
-    fig_corr = px.imshow(
-        corr.values,
-        x=corr.columns,
-        y=corr.index,
-        color_continuous_scale=blue_scale,
-        origin="lower",
-        title="Correlation Heatmap",
-        height=900,
-        width=1400
-    )
+        fig_corr = px.imshow(
+            corr.values,
+            x=corr.columns,
+            y=corr.index,
+            color_continuous_scale=blue_scale,
+            origin="lower",
+            title="Correlation Heatmap",
+            height=900,
+            width=1400
+        )
 
-    # Improve readability
-    fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
-    fig_corr.update_yaxes(tickfont=dict(size=14))
-    fig_corr.update_layout(
-        title_font=dict(size=24),
-        coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
-    )
+        fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
+        fig_corr.update_yaxes(tickfont=dict(size=14))
+        fig_corr.update_layout(
+            title_font=dict(size=24),
+            coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
+        )
 
-    st.plotly_chart(fig_corr, use_container_width=True)
+        st.plotly_chart(fig_corr, use_container_width=True)
 
-else:
-    st.info("No numeric columns available for correlation heatmap.")
+    else:
+        st.info("No numeric columns available for correlation heatmap.")
+
 
 # --------------------------------------------------
 # MODELS TAB (use FULL dataset, not filtered)
@@ -595,6 +595,36 @@ with tab_models:
         title="ROC Curve Comparison"
     )
     st.plotly_chart(fig_roc, use_container_width=True)
+        # --------------------------------------------------
+    # Random Forest Feature Importance
+    # --------------------------------------------------
+    st.subheader("Key Drivers of High Absenteeism (Random Forest)")
+
+    # rf_model is already trained above; X is the feature DataFrame used for training
+    feature_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
+
+    # Take top 15 features and sort them for a neat horizontal bar chart
+    fi_top = feature_importances.sort_values(ascending=False).head(15)
+    fi_top = fi_top.sort_values(ascending=True)  # smallest at bottom, largest at top visually
+
+    # Use blue theme similar to other charts
+    fig_imp = px.bar(
+        x=fi_top.values,
+        y=fi_top.index,
+        orientation="h",
+        labels={"x": "Importance (Gini)", "y": "Feature"},
+        title="Top 15 Features Driving High Absenteeism",
+    )
+
+    # Apply solid blue color to match your theme
+    fig_imp.update_traces(marker_color="#0066CC")  # dark blue you used elsewhere
+
+    fig_imp.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(showgrid=True),
+    )
+
+    st.plotly_chart(fig_imp, use_container_width=True)
 
 # --------------------------------------------------
 # CLUSTERS TAB (Improved, data-rich clustering)
