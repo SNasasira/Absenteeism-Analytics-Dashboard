@@ -400,28 +400,22 @@ with tab_overview:
 # EDA TAB
 # --------------------------------------------------
 with tab_eda:
+
     st.subheader("Distribution of Absenteeism Hours")
+    fig_dist = px.histogram(
+        df,
+        x="Absenteeism time in hours",
+        nbins=20,
+        labels={"Absenteeism time in hours": "Hours"},
+        title="Distribution of Absenteeism Time"
+    )
+    st.plotly_chart(fig_dist, use_container_width=True)
 
-    if "Absenteeism time in hours" in df.columns:
-        fig_dist = px.histogram(
-            df,
-            x="Absenteeism time in hours",
-            nbins=20,
-            labels={"Absenteeism time in hours": "Hours"},
-            title="Distribution of Absenteeism Time"
-        )
-        st.plotly_chart(fig_dist, use_container_width=True)
-    else:
-        st.info("Column 'Absenteeism time in hours' not found.")
-
-    # -------------------------
-    # Top employees & Age groups
-    # -------------------------
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Top 15 Employees by Total Absenteeism")
-        if "ID" in df.columns and "Absenteeism time in hours" in df.columns:
+        if "ID" in df.columns:
             emp_abs = (
                 df.groupby("ID")["Absenteeism time in hours"]
                   .sum()
@@ -438,11 +432,11 @@ with tab_eda:
             )
             st.plotly_chart(fig_emp, use_container_width=True)
         else:
-            st.info("Columns 'ID' or 'Absenteeism time in hours' not found.")
+            st.info("Column 'ID' not found.")
 
     with col2:
         st.subheader("Absenteeism by Age Group")
-        if "Age" in df.columns and "Absenteeism time in hours" in df.columns:
+        if "Age" in df.columns:
             age_bins = [20, 30, 40, 50, 60]
             df_age = df.copy()
             df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
@@ -459,46 +453,45 @@ with tab_eda:
                 title="Total Absenteeism by Age Group"
             )
             st.plotly_chart(fig_age, use_container_width=True)
-        else:
-            st.info("Column 'Age' or 'Absenteeism time in hours' not found.")
 
-    st.markdown("---")
+    # ----------------------------
+    # CORRELATION HEATMAP (fixed)
+    # ----------------------------
     st.subheader("Correlation Heatmap (Numeric Variables)")
 
-    # Numeric-only dataframe
     num_df = df.select_dtypes(include=[np.number])
 
     if not num_df.empty:
         corr = num_df.corr()
 
-        # Custom blue color scale (light -> dark)
         blue_scale = [
-            [0.0, "#99CCFF"],  # light blue
-            [1.0, "#0066CC"]   # dark blue
+            [0.0, "#99CCFF"],
+            [1.0, "#0066CC"]
         ]
 
         fig_corr = px.imshow(
-            corr,                      # use full DataFrame (keeps labels)
+            corr.values,
+            x=corr.columns,
+            y=corr.index,
             color_continuous_scale=blue_scale,
             origin="lower",
             title="Correlation Heatmap",
-            aspect="auto"              # prevents tiling into multiple panels
+            height=900,
+            width=1400
         )
 
-        # Layout & readability
+        fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
+        fig_corr.update_yaxes(tickfont=dict(size=14))
         fig_corr.update_layout(
-            height=900,
-            width=1400,
             title_font=dict(size=24),
             coloraxis_colorbar=dict(title="Correlation", tickfont=dict(size=12))
         )
-        fig_corr.update_xaxes(tickfont=dict(size=14), tickangle=45)
-        fig_corr.update_yaxes(tickfont=dict(size=14))
 
         st.plotly_chart(fig_corr, use_container_width=True)
 
     else:
         st.info("No numeric columns available for correlation heatmap.")
+
   
 
 # --------------------------------------------------
