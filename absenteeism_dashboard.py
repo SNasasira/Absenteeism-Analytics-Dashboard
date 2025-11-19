@@ -152,6 +152,7 @@ if df.empty:
 # --------------------------------------------------
 # KPIs (EXTENDED)
 # --------------------------------------------------
+
 # --- Quick clustering for KPI (cluster sizes) ---
 cluster_cols_base = [
     "Absenteeism time in hours",
@@ -181,16 +182,38 @@ if len(cluster_cols_kpi) >= 2:
     df_kpi_clusters["Cluster"] = labels_kpi
     sizes = df_kpi_clusters["Cluster"].value_counts().sort_index()
 
+    # Example: "0: 138 | 1: 248 | 2: 53"
     cluster_kpi_text = " | ".join(
         [f"{i}: {int(sizes.get(i, 0))}" for i in range(k_kpi)]
     )
 
-# Better KPI layout – 3 items per row
+# --- KPI VALUES ---
+total_hours = df["Absenteeism time in hours"].sum()
+avg_abs = df["Absenteeism time in hours"].mean()
+median_abs = df["Absenteeism time in hours"].median()
+high_abs_pct = (
+    df["High_absenteeism"].mean() * 100
+    if "High_absenteeism" in df.columns
+    else 0
+)
+
+num_employees = df["ID"].nunique() if "ID" in df.columns else None
+avg_bmi = df["Body mass index"].mean() if "Body mass index" in df.columns else np.nan
+avg_dist = (
+    df["Distance from Residence to Work"].mean()
+    if "Distance from Residence to Work" in df.columns
+    else np.nan
+)
+
+# --- LAYOUT: 3 KPIs PER ROW ---
 row1 = st.columns(3)
 row2 = st.columns(3)
 
 with row1[0]:
-    st.metric("Employees (Filtered)", num_employees if num_employees is not None else "-")
+    st.metric(
+        "Employees (Filtered)",
+        num_employees if num_employees is not None else "-"
+    )
 
 with row1[1]:
     st.metric("Employees per Cluster (0 | 1 | 2)", cluster_kpi_text)
@@ -207,37 +230,15 @@ with row2[1]:
 with row2[2]:
     st.metric(
         "Avg BMI / Distance",
-        f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km"
-        if not np.isnan(avg_bmi) and not np.isnan(avg_dist)
-        else "-"
+        (
+            f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km"
+            if not np.isnan(avg_bmi) and not np.isnan(avg_dist)
+            else "-"
+        ),
     )
 
-total_hours = df["Absenteeism time in hours"].sum()
-avg_abs = df["Absenteeism time in hours"].mean()
-median_abs = df["Absenteeism time in hours"].median()
-high_abs_pct = (df["High_absenteeism"].mean() * 100) if "High_absenteeism" in df.columns else 0
-
-if "ID" in df.columns:
-    num_employees = df["ID"].nunique()
-else:
-    num_employees = None
-
-avg_bmi = df["Body mass index"].mean() if "Body mass index" in df.columns else np.nan
-avg_dist = df["Distance from Residence to Work"].mean() if "Distance from Residence to Work" in df.columns else np.nan
-
-kpi1.metric("Employees (Filtered)", num_employees if num_employees is not None else "-")
-kpi2.metric("Employees per Cluster (0 | 1 | 2)", cluster_kpi_text)
-kpi3.metric("Total Hours Missed", f"{total_hours:.0f}")
-kpi4.metric("Avg Hours / Record", f"{avg_abs:.2f}")
-kpi5.metric("% High Absenteeism", f"{high_abs_pct:.1f}%")
-kpi6.metric(
-    "Avg BMI / Distance",
-    f"{avg_bmi:.1f} BMI | {avg_dist:.1f} km"
-    if not np.isnan(avg_bmi) and not np.isnan(avg_dist)
-    else "-"
-)
-
 st.markdown("---")
+
 
 # --------------------------------------------------
 # TABS
