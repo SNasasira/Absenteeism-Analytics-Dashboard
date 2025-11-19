@@ -434,25 +434,37 @@ with tab_eda:
         else:
             st.info("Column 'ID' not found.")
 
-    with col2:
-        st.subheader("Absenteeism by Age Group")
-        if "Age" in df.columns:
-            age_bins = [20, 30, 40, 50, 60]
-            df_age = df.copy()
-            df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
-            age_group_abs = (
-                df_age.groupby("Age group")["Absenteeism time in hours"]
-                .sum()
-                .reset_index()
-            )
-            fig_age = px.bar(
-                age_group_abs,
-                x="Age group",
-                y="Absenteeism time in hours",
-                labels={"Absenteeism time in hours": "Total Hours"},
-                title="Total Absenteeism by Age Group"
-            )
-            st.plotly_chart(fig_age, use_container_width=True)
+with col2:
+    st.subheader("Absenteeism by Age Group")
+    if "Age" in df.columns:
+        age_bins = [20, 30, 40, 50, 60]
+        df_age = df.copy()
+
+        # Create interval bins
+        df_age["Age group"] = pd.cut(df_age["Age"], bins=age_bins, right=False)
+
+        # Convert intervals to string labels so Plotly can serialize them
+        df_age["Age group label"] = df_age["Age group"].astype(str)
+
+        age_group_abs = (
+            df_age.groupby("Age group label")["Absenteeism time in hours"]
+            .sum()
+            .reset_index()
+        )
+
+        fig_age = px.bar(
+            age_group_abs,
+            x="Age group label",
+            y="Absenteeism time in hours",
+            labels={
+                "Age group label": "Age group",
+                "Absenteeism time in hours": "Total Hours"
+            },
+            title="Total Absenteeism by Age Group"
+        )
+        st.plotly_chart(fig_age, use_container_width=True)
+    else:
+        st.info("Column 'Age' not found.")
 
     # ----------------------------
     # CORRELATION HEATMAP (fixed)
