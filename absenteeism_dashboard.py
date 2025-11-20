@@ -673,18 +673,21 @@ with tab_models:
     st.plotly_chart(fig_imp, use_container_width=True)
 
 # --------------------------------------------------
-# CLUSTERS TAB
+# CLUSTERS TAB (Final Updated Version)
 # --------------------------------------------------
 with tab_clusters:
-    st.subheader("Clustering: Absenteeism Hotspot Segments")
 
-    st.markdown(
+    st.subheader("Clustering: Absenteeism Hotspot Segments")
+    st.write(
         "We group employees into clusters based on workload, commute, demographics, "
         "and absenteeism patterns to identify high-risk segments for targeted HR actions."
     )
 
-    # Features to use for clustering (keep only those that exist after filtering)
-    cluster_features = [
+    # ---------- Select k ----------
+    k = st.slider("Number of clusters (k)", min_value=2, max_value=6, value=3)
+
+    # ---------- Select clustering columns ----------
+    cluster_cols = [
         "Absenteeism time in hours",
         "Work load Average/day ",
         "Transportation expense",
@@ -692,151 +695,104 @@ with tab_clusters:
         "Age",
         "Service time",
         "Body mass index",
+        "High_absenteeism",
     ]
-    cluster_features = [c for c in cluster_features if c in df.columns]
 
-    if len(cluster_features) < 2:
-        st.info(
-            "Not enough numeric columns available for clustering. "
-            "Please ensure the dataset includes the core numeric features."
+    cluster_cols = [c for c in cluster_cols if c in df.columns]
+    if len(cluster_cols) < 2:
+        st.info("Not enough numeric columns for clustering.")
+        st.stop()
+
+    cluster_df = df[cluster_cols].copy()
+
+    # ---------- Scale ----------
+    scaler = StandardScaler()
+    cluster_scaled = scaler.fit_transform(cluster_df)
+
+    # ---------- Run KMeans ----------
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+    labels = kmeans.fit_predict(cluster_scaled)
+    df_cl = df.copy()
+    df_cl["Cluster"] = labels
+
+    # --------------------------------------------------
+    # 1. Cluster Sizes
+    # --------------------------------------------------
+    st.subheader("Cluster Sizes (Filtered Population)")
+    size_table = (
+        df_cl.groupby("Cluster")
+        .size()
+        .reset_index(name="Employees")
+        .sort_values(by="Employees", ascending=False)
+    )
+    st.dataframe(size_table, width=350)
+
+    # --------------------------------------------------
+    # 2. Identify High-Risk Cluster
+    # --------------------------------------------------
+    st.subheader("High-Risk Absenteeism Cluster")
+
+    # avg hours missed per cluster
+    cluster_avg_hours = (
+        df_cl.groupby("Cluster")["Absenteeism time in hours"].mean().sort_values(ascending=False)
+    )
+
+    high_cluster = cluster_avg_hours.index[0]
+    high_value = cluster_avg_hours.iloc[0]
+
+    st.markdown(
+        f"- **Highest average hours missed:** Cluster **{high_cluster}** "
+        f"({high_value:.2f} hours per record)"
+    )
+
+    # Cluster profile table
+    st.markdown("**Cluster profile (mean values)**")
+    profile = (
+        df_cl.groupby("Cluster")[cluster_cols]
+        .mean()
+        .round(2)
+        .loc[[high_cluster]]
+        .T.reset_index()
+    )
+    profile.columns = ["Feature", "Mean value"]
+    st.dataframe(profile, width=450)
+
+    # --------------------------------------------------
+    # 3. Total Absenteeism Hours per Cluster
+    # --------------------------------------------------
+    st.subheader("Total Absenteeism Hours by Cluster")
+
+    total_hours_cluster = (
+        df_cl.groupby("Cluster")["Absenteeism time in hours"]
+        .sum()
+        .reset_index()
+        .sort_values("Absenteeism time in hours")
+    )
+
+    fig_hours_cluster = px.bar(
+        total_hours_cluster,
+        x="Cluster",
+        y="Absenteeism time in hours",
+        color="Absenteeism time in hours",
+        color_continuous_scale=[[0, "#cce5ff"], [1, "#003f7f"]],
+        title="Total Absenteeism Hours per Cluster",
+    )
+    st.plotly_chart(fig_hours_cluster, use_container_width=True)
+
+    # --------------------------------------------------
+    # 4. Age vs Absenteeism Scatter by Cluster
+    # --------------------------------------------------
+    st.subheader("Age vs Absenteeism by Cluster")
+
+    if "Age" in df_cl.columns:
+        fig_scatter = px.scatter(
+            df_cl,
+            x="Age",
+            y="Absenteeism time in hours",
+            color="Cluster",
+            color_continuous_scale=[[0, "#cce5ff"], [1, "#003f7f"]],
+            title="Employee Absenteeism Profiles by Cluster",
+            labels={"Absenteeism time in hours": "Hours Missed"},
         )
-    else:
-        # Allow user to choose k
-        k = st.slider(
-            "Number of clusters (k)",
-            min_value=2,
-            max_value=6,
-            value=4,
-            step=1,
-            help="Clusters are recomputed each time you change k."
-        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
-        # Use only complete rows for clustering
-        df_cluster = df[cluster_features].dropna()
-
-        if df_cluster.empty:
-            st.info(
-                "No rows with complete values for the selected clustering features "
-                "under the current filters."
-            )
-        else:
-            # Scale and cluster
-            scaler_cl = StandardScaler()
-            cluster_scaled = scaler_cl.fit_transform(df_cluster)
-
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
-            labels = kmeans.fit_predict(cluster_scaled)
-
-            # Attach cluster labels back to the full (filtered) df
-            df_cl = df.copy()
-            df_cl["Cluster"] = np.nan
-            df_cl.loc[df_cluster.index, "Cluster"] = labels
-
-            # Human-friendly label for tables
-            df_cl["Cluster_label"] = df_cl["Cluster"].apply(
-                lambda x: f"Cluster {int(x)}" if pd.notnull(x) else "Unassigned"
-            )
-
-            valid_mask = df_cl["Cluster"].notna()
-
-            # -----------------------------
-            # 1) Cluster sizes
-            # -----------------------------
-            st.markdown("### Cluster Sizes (Filtered Population)")
-            size_table = (
-                df_cl["Cluster_label"]
-                .value_counts()
-                .rename_axis("Cluster")
-                .to_frame("Employees")
-            )
-            st.dataframe(size_table)
-
-            # -----------------------------
-            # 2) High-risk cluster summary
-            # -----------------------------
-            st.markdown("### High-Risk Absenteeism Cluster")
-
-            risk_table = (
-                df_cl[valid_mask]
-                .groupby("Cluster")["Absenteeism time in hours"]
-                .mean()
-                .sort_index()
-            )
-
-            if not risk_table.empty:
-                high_risk = int(risk_table.idxmax())
-                st.markdown(
-                    f"- **Highest average hours missed:** Cluster **{high_risk}**  "
-                    f"({risk_table[high_risk]:.2f} hours per record)"
-                )
-
-                profile_cols = cluster_features + ["High_absenteeism"]
-                profile_cols = [c for c in profile_cols if c in df_cl.columns]
-
-                profile = (
-                    df_cl[df_cl["Cluster"] == high_risk][profile_cols]
-                    .mean(numeric_only=True)
-                    .to_frame("Mean value")
-                    .round(2)
-                )
-
-                st.markdown("**Cluster profile (mean values)**")
-                st.dataframe(profile)
-            else:
-                st.info("Unable to compute cluster risk statistics.")
-
-            # -----------------------------
-            # 3) Total absenteeism hours by cluster
-            # -----------------------------
-            st.markdown("### Total Absenteeism Hours by Cluster")
-
-            cluster_abs = (
-                df_cl[valid_mask]
-                .groupby("Cluster")["Absenteeism time in hours"]
-                .sum()
-                .reset_index()
-            )
-            cluster_abs["Cluster"] = cluster_abs["Cluster"].astype(int)
-
-            fig_bar = px.bar(
-                cluster_abs,
-                x="Cluster",
-                y="Absenteeism time in hours",
-                labels={
-                    "Cluster": "Cluster",
-                    "Absenteeism time in hours": "Total Hours",
-                },
-                title="Total Absenteeism Hours per Cluster",
-                color="Absenteeism time in hours",
-                color_continuous_scale=px.colors.sequential.Blues,
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-            # -----------------------------
-            # 4) Age vs Absenteeism by cluster (scatter)
-            # -----------------------------
-            st.markdown("### Age vs Absenteeism by Cluster")
-
-            if "Age" in df_cl.columns:
-                scatter_df = df_cl[valid_mask].copy()
-                scatter_df["Cluster"] = scatter_df["Cluster"].astype(int)
-
-                hover_cols = []
-                if "Service time" in scatter_df.columns:
-                    hover_cols.append("Service time")
-                if "Work load Average/day " in scatter_df.columns:
-                    hover_cols.append("Work load Average/day ")
-
-                fig_scatter = px.scatter(
-                    scatter_df,
-                    x="Age",
-                    y="Absenteeism time in hours",
-                    color="Cluster",
-                    color_discrete_sequence=px.colors.sequential.Blues,
-                    title="Employee Absenteeism Profiles by Cluster",
-                    labels={"Absenteeism time in hours": "Hours Missed"},
-                    hover_data=hover_cols if hover_cols else None,
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            else:
-                st.info("Column 'Age' is not available for the scatter plot.")
